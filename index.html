@@ -1,0 +1,752 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafeCity Pulse - Women Safety (Google Maps)</title>
+
+<style>
+  /* Full screen background with dark overlay */
+  body, html {
+    margin: 0; padding: 0; height: 100%;
+    font-family: Arial, sans-serif;
+    background: 
+      linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
+      url('https://images.unsplash.com/photo-1520697222865-0dcd540d5e24?auto=format&fit=crop&w=1470&q=80') no-repeat center center fixed;
+    background-size: cover;
+    color: #eee;
+  }
+
+  /* Transparent container to keep content readable */
+  .container {
+    max-width: 900px;
+    margin: 20px auto 40px;
+    background: rgba(30,30,30,0.8);
+    padding: 20px 25px;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.6);
+  }
+
+  h1, h2, h3 {
+    color: #ff6b6b;
+    margin-bottom: 12px;
+  }
+
+  label {
+    display: block;
+    margin-top: 12px;
+    font-weight: bold;
+  }
+
+  input, select, textarea, button {
+    width: 100%;
+    padding: 8px;
+    margin-top: 6px;
+    border-radius: 5px;
+    border: 1px solid #555;
+    box-sizing: border-box;
+    font-size: 1rem;
+    background-color: #222;
+    color: #eee;
+    transition: border-color 0.3s;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #aaa;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: #ff6b6b;
+    outline: none;
+  }
+
+  button {
+    background-color: #ff6b6b;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s;
+  }
+
+  button:hover:not(:disabled) {
+    background-color: #ff8787;
+  }
+
+  button:disabled {
+    background-color: #a55555;
+    cursor: not-allowed;
+  }
+
+  #map {
+    height: 350px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 2px solid #ff6b6b;
+    box-shadow: 0 0 12px rgba(255, 107, 107, 0.6);
+  }
+
+  #log {
+    background: #111;
+    border-radius: 6px;
+    padding: 12px;
+    max-height: 180px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #f8d7da;
+  }
+
+  .small {
+    font-size: 0.85rem;
+    color: #ccc;
+  }
+
+  #langToggleBtn {
+    margin-bottom: 20px;
+    background-color: #0984e3;
+    width: auto;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-weight: bold;
+  }
+
+  /* Fixed small logo top-left */
+  #logo {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    width: 60px;
+    height: 60px;
+    background: url('https://cdn-icons-png.flaticon.com/512/2650/2650779.png') no-repeat center center;
+    background-size: contain;
+    z-index: 9999;
+    border-radius: 8px;
+    box-shadow: 0 0 8px rgba(255, 107, 107, 0.8);
+  }
+
+  /* Responsive */
+  @media(max-width: 500px) {
+    #map {
+      height: 250px;
+    }
+  }
+</style>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<!-- Google Maps API -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDg-QehG3u_gjOAAhdusxaqO_MviEQ1kzw" defer></script>
+
+</head>
+<body>
+
+<div id="logo" title="SafeCity Pulse Logo"></div>
+
+<div class="container">
+  <button id="langToggleBtn">தமிழுக்கு மாற்றவும் (Switch to Tamil)</button>
+
+  <h1 data-lang-key="title">SafeCity Pulse - Women Safety Companion</h1>
+
+  <section>
+    <h2 data-lang-key="safety_map">Safety Map & Report</h2>
+    <div id="map"></div>
+
+    <form id="reportForm" onsubmit="return false;">
+      <label for="category" data-lang-key="category_label">Category</label>
+      <select id="category" required>
+        <option value="" data-lang-key="select_one">Select one</option>
+        <option value="Harassment" data-lang-key="harassment">Harassment</option>
+        <option value="Theft" data-lang-key="theft">Theft</option>
+        <option value="Accident" data-lang-key="accident">Accident</option>
+        <option value="Fire" data-lang-key="fire">Fire</option>
+        <option value="Other" data-lang-key="other">Other</option>
+      </select>
+
+      <label for="details" data-lang-key="details_label">Details</label>
+      <textarea id="details" rows="3" placeholder="Describe the incident" required></textarea>
+      <button type="button" id="startVoiceBtn" style="margin-top: 4px; font-size:0.9rem;">🎤 Start Voice Input</button>
+
+      <label for="location" data-lang-key="location_label">Location (lat,lng)</label>
+      <input id="location" placeholder="e.g. 13.0827,80.2707" />
+      <button type="button" id="useLocationBtn" data-lang-key="use_location_btn">Use My Location</button>
+
+      <button id="submitBtn" type="submit" data-lang-key="submit_report_btn">Submit Report</button>
+      <button id="loadReportsBtn" type="button" data-lang-key="load_reports_btn">Load Reports on Map</button>
+      <button id="clearReportsBtn" type="button" data-lang-key="clear_reports_btn" style="background:#b33939;">Clear All Reports</button>
+    </form>
+
+    <label for="filterCategory" data-lang-key="filter_category_label" style="margin-top: 15px;">Filter Reports by Category</label>
+    <select id="filterCategory">
+      <option value="all" data-lang-key="all_categories">All Categories</option>
+      <option value="Harassment" data-lang-key="harassment">Harassment</option>
+      <option value="Theft" data-lang-key="theft">Theft</option>
+      <option value="Accident" data-lang-key="accident">Accident</option>
+      <option value="Fire" data-lang-key="fire">Fire</option>
+      <option value="Other" data-lang-key="other">Other</option>
+    </select>
+
+    <label for="searchInput" data-lang-key="search_label" style="margin-top: 12px;">Search Reports</label>
+    <input id="searchInput" placeholder="Type keywords to search" />
+
+    <label for="sortOrder" data-lang-key="sort_label" style="margin-top: 12px;">Sort Reports By:</label>
+    <select id="sortOrder">
+      <option value="newest" data-lang-key="newest_first">Newest First</option>
+      <option value="oldest" data-lang-key="oldest_first">Oldest First</option>
+    </select>
+
+    <div style="margin-top: 10px;">
+      <button id="downloadReportsBtn" type="button" data-lang-key="download_reports_btn">Download Reports as JSON</button>
+      <button id="nearestReportBtn" type="button" data-lang-key="nearest_report_btn">Show Nearest Report to Me</button>
+      <button id="printLogBtn" type="button" data-lang-key="print_log_btn">Print Incident Log</button>
+    </div>
+
+    <h3 data-lang-key="incident_log">Incident Log</h3>
+    <div id="log">No reports yet.</div>
+  </section>
+
+  <section>
+    <h2 data-lang-key="emergency_contact">Emergency Contact</h2>
+    <label for="emergencyNumber" data-lang-key="emergency_contact_number_label">Emergency Contact Number:</label>
+    <input id="emergencyNumber" placeholder="+911234567890" />
+    <button id="callEmergencyBtn" data-lang-key="call_now_btn">Call Now</button>
+  </section>
+
+  <section>
+    <h2 data-lang-key="sos_countdown">SOS Countdown</h2>
+    <label for="sosSeconds" data-lang-key="countdown_seconds_label">Countdown seconds:</label>
+    <input type="number" id="sosSeconds" placeholder="e.g. 10" min="1" max="300" />
+    <button id="startSosBtn" data-lang-key="start_sos_btn">Start SOS Countdown</button>
+    <button id="cancelSosBtn" disabled data-lang-key="cancel_sos_btn">Cancel SOS</button>
+    <p id="sosStatus" class="small" data-lang-key="status_idle">Status: Idle</p>
+  </section>
+
+  <section>
+    <h2 data-lang-key="awareness_tips">Awareness & Tips</h2>
+    <ul>
+      <li data-lang-key="tip_1">Stay alert and aware of your surroundings.</li>
+      <li data-lang-key="tip_2">Keep your phone charged and accessible.</li>
+      <li data-lang-key="tip_3">Share your location with a trusted contact when traveling.</li>
+      <li data-lang-key="tip_4">Learn basic self-defense moves.</li>
+      <li data-lang-key="tip_5">Use safe routes and avoid poorly-lit or isolated areas.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+  // Firebase Config - Replace with your own config if needed
+  const firebaseConfig = {
+    apiKey: "AIzaSyAvpjF1Rv5I--U9QJcxNWz2zvo4aD6vEKc",
+  authDomain: "safecity-pulse-ae169.firebaseapp.com",
+  projectId: "safecity-pulse-ae169",
+  storageBucket: "safecity-pulse-ae169.firebasestorage.app",
+  messagingSenderId: "635597897021",
+  appId: "1:635597897021:web:c66d48f0fbb68467da9954",
+  measurementId: "G-53XJ5Q3GVC"
+  };
+
+  
+
+
+  // Multilingual text resources
+  const texts = {
+    en: {
+      title: "SafeCity Pulse - Women Safety Companion",
+      safety_map: "Safety Map & Report",
+      category_label: "Category",
+      select_one: "Select one",
+      harassment: "Harassment",
+      theft: "Theft",
+      accident: "Accident",
+      fire: "Fire",
+      other: "Other",
+      details_label: "Details",
+      location_label: "Location (lat,lng)",
+      use_location_btn: "Use My Location",
+      submit_report_btn: "Submit Report",
+      load_reports_btn: "Load Reports on Map",
+      clear_reports_btn: "Clear All Reports",
+      filter_category_label: "Filter Reports by Category",
+      all_categories: "All Categories",
+      search_label: "Search Reports",
+      sort_label: "Sort Reports By:",
+      newest_first: "Newest First",
+      oldest_first: "Oldest First",
+      download_reports_btn: "Download Reports as JSON",
+      nearest_report_btn: "Show Nearest Report to Me",
+      print_log_btn: "Print Incident Log",
+      incident_log: "Incident Log",
+      emergency_contact: "Emergency Contact",
+      emergency_contact_number_label: "Emergency Contact Number:",
+      call_now_btn: "Call Now",
+      sos_countdown: "SOS Countdown",
+      countdown_seconds_label: "Countdown seconds:",
+      start_sos_btn: "Start SOS Countdown",
+      cancel_sos_btn: "Cancel SOS",
+      status_idle: "Status: Idle",
+      awareness_tips: "Awareness & Tips",
+      tip_1: "Stay alert and aware of your surroundings.",
+      tip_2: "Keep your phone charged and accessible.",
+      tip_3: "Share your location with a trusted contact when traveling.",
+      tip_4: "Learn basic self-defense moves.",
+      tip_5: "Use safe routes and avoid poorly-lit or isolated areas.",
+      voice_input_start: "🎤 Start Voice Input",
+      voice_input_stop: "🛑 Stop Voice Input"
+    },
+    ta: {
+      title: "சேஃப்சிட்டி பல் - பெண்கள் பாதுகாப்பு துணை",
+      safety_map: "பாதுகாப்பு வரைபடம் மற்றும் புகார்களுடன்",
+      category_label: "வகை",
+      select_one: "தேர்ந்தெடுக்கவும்",
+      harassment: "வன்கொடுமை",
+      theft: "திருட்டு",
+      accident: "விபத்து",
+      fire: "தீ",
+      other: "மற்றவை",
+      details_label: "விவரங்கள்",
+      location_label: "இடம் (அட்சரம், நீளம்)",
+      use_location_btn: "எனது இடத்தை பயன்படுத்தவும்",
+      submit_report_btn: "புகாரை சமர்ப்பிக்கவும்",
+      load_reports_btn: "வரைப்படத்தில் புகார்கள் ஏற்றவும்",
+      clear_reports_btn: "அனைத்து புகார்களையும் அழிக்கவும்",
+      filter_category_label: "வகை மூலம் புகார்களை வடிகட்டவும்",
+      all_categories: "அனைத்து வகைகள்",
+      search_label: "புகார்களைத் தேடவும்",
+      sort_label: "புகார்களை வரிசைப்படுத்தவும்:",
+      newest_first: "புதியவை முதலில்",
+      oldest_first: "பழையவை முதலில்",
+      download_reports_btn: "புகார்களை JSON ஆக பதிவிறக்கவும்",
+      nearest_report_btn: "எனது அருகிலுள்ள புகாரை காட்டு",
+      print_log_btn: "நிகழ்வு பதிவை அச்சிடவும்",
+      incident_log: "நிகழ்வு பதிவு",
+      emergency_contact: "அவசர தொடர்பு",
+      emergency_contact_number_label: "அவசர தொடர்பு எண்:",
+      call_now_btn: "இப்போதே அழைக்கவும்",
+      sos_countdown: "SOS எண்ணிக்கை",
+      countdown_seconds_label: "எண்ணிக்கை நொடிகள்:",
+      start_sos_btn: "SOS எண்ணிக்கையை துவங்குக",
+      cancel_sos_btn: "SOS ரத்து செய்க",
+      status_idle: "நிலை: ஓய்வு",
+      awareness_tips: "அறிவுறுத்தல்கள் மற்றும் குறிப்புகள்",
+      tip_1: "உங்கள் சுற்றுப்புறத்தை கவனமாக இருக்கவும்.",
+      tip_2: "உங்கள் மொபைலை சார்ஜ் செய்து அணுகக்கூடிய நிலையில் வைக்கவும்.",
+      tip_3: "பயணிக்கும் போது உங்கள் இடத்தை நம்பகமான ஒருவருடன் பகிரவும்.",
+      tip_4: "அடிப்படையான தற்காப்பு முறைகளை கற்றுக்கொள்ளவும்.",
+      tip_5: "பாதுகாப்பான பாதைகளைப் பயன்படுத்தவும் மற்றும் ஒளி இல்லாத அல்லது தனிமையான இடங்களை தவிர்க்கவும்.",
+      voice_input_start: "🎤 குரல் உள்ளீட்டை துவக்கவும்",
+      voice_input_stop: "🛑 குரல் உள்ளீட்டை நிறுத்தவும்"
+    }
+  };
+
+  let currentLang = 'en';
+
+  function applyLanguage(lang) {
+    document.querySelectorAll('[data-lang-key]').forEach(el => {
+      const key = el.getAttribute('data-lang-key');
+      if(texts[lang][key]) {
+        if(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
+          if(el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
+            el.textContent = texts[lang][key];
+          } else {
+            el.placeholder = texts[lang][key];
+          }
+        } else {
+          el.textContent = texts[lang][key];
+        }
+      }
+    });
+    document.getElementById('details').placeholder = lang === 'en' ? 'Describe the incident' : 'நிகழ்வை விவரிக்கவும்';
+    updateVoiceBtnText();
+    document.getElementById('langToggleBtn').textContent = lang === 'en' ? 'தமிழுக்கு மாற்றவும் (Switch to Tamil)' : 'Switch to English (ஆங்கிலத்திற்கு மாற்றவும்)';
+  }
+
+  document.getElementById('langToggleBtn').addEventListener('click', () => {
+    currentLang = currentLang === 'en' ? 'ta' : 'en';
+    applyLanguage(currentLang);
+  });
+
+  // Google Maps Init
+  let map;
+  let markers = [];
+
+  function initMap() {
+    const center = { lat: 13.0827, lng: 80.2707 };
+    map = new google.maps.Map(document.getElementById('map'), {
+      zoom: 13,
+      center,
+    });
+  }
+
+  // Add a marker on the map
+  function addMarker(report) {
+    if(report.lat && report.lng) {
+      const position = { lat: report.lat, lng: report.lng };
+      const marker = new google.maps.Marker({
+        position,
+        map,
+        title: `${report.category} - ${report.details}`,
+        animation: google.maps.Animation.DROP,
+      });
+      const infowindow = new google.maps.InfoWindow({
+        content: `<strong>${report.category}</strong><br>${report.details}<br><em>${new Date(report.timestamp?.toDate()).toLocaleString() || ''}</em>`,
+      });
+      marker.addListener('click', () => infowindow.open(map, marker));
+      markers.push(marker);
+    }
+  }
+
+  // Clear all markers
+  function clearMarkers() {
+    markers.forEach(m => m.setMap(null));
+    markers = [];
+  }
+
+  // Load reports from Firebase and add markers
+  async function loadReports() {
+    clearMarkers();
+    const snapshot = await db.collection('reports').get();
+    const reports = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      reports.push({...data, id: doc.id});
+    });
+    updateLog(reports);
+    reports.forEach(addMarker);
+  }
+
+  // Update log area with reports
+  function updateLog(reports) {
+    if(reports.length === 0) {
+      document.getElementById('log').textContent = currentLang === 'en' ? "No reports yet." : "புகார்கள் இல்லை.";
+      return;
+    }
+    let logText = reports.map(r => {
+      const timeStr = r.timestamp ? new Date(r.timestamp.toDate()).toLocaleString() : '';
+      return `[${timeStr}] ${r.category} - ${r.details} (Lat: ${r.lat || 'N/A'}, Lng: ${r.lng || 'N/A'})`;
+    }).join('\n\n');
+    document.getElementById('log').textContent = logText;
+  }
+
+  // Submit new report
+  async function submitReport() {
+    const category = document.getElementById('category').value;
+    const details = document.getElementById('details').value.trim();
+    const locInput = document.getElementById('location').value.trim();
+    if (!category) {
+      alert(currentLang === 'en' ? "Please select a category." : "தயவு செய்து வகையைத் தேர்ந்தெடுக்கவும்.");
+      return;
+    }
+    if (!details) {
+      alert(currentLang === 'en' ? "Please enter details." : "தயவு செய்து விவரங்களை உள்ளிடவும்.");
+      return;
+    }
+    let lat, lng;
+    if (locInput) {
+      const parts = locInput.split(',');
+      if(parts.length !== 2) {
+        alert(currentLang === 'en' ? "Location must be in 'lat,lng' format." : "இடம் 'அட்சரம், நீளம்' வடிவத்தில் இருக்க வேண்டும்.");
+        return;
+      }
+      lat = parseFloat(parts[0]);
+      lng = parseFloat(parts[1]);
+      if(isNaN(lat) || isNaN(lng)) {
+        alert(currentLang === 'en' ? "Invalid latitude or longitude." : "தவறான அகலம் அல்லது நீளம்.");
+        return;
+      }
+    } else {
+      alert(currentLang === 'en' ? "Please provide location coordinates." : "தயவு செய்து இட அடையாளங்களைக் கொடுக்கவும்.");
+      return;
+    }
+
+    const newReport = {
+      category,
+      details,
+      lat,
+      lng,
+      timestamp: firebase.firestore.Timestamp.now(),
+    };
+
+    try {
+      await db.collection('reports').add(newReport);
+      alert(currentLang === 'en' ? "Report submitted successfully!" : "புகார் வெற்றிகரமாக சமர்ப்பிக்கப்பட்டது!");
+      document.getElementById('reportForm').reset();
+      loadReports();
+    } catch (error) {
+      alert(currentLang === 'en' ? "Error submitting report: " + error.message : "புகாரை சமர்ப்பிக்கும்போது பிழை: " + error.message);
+    }
+  }
+
+  // Use browser geolocation
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      alert(currentLang === 'en' ? "Geolocation is not supported by your browser." : "உங்கள் உலாவியில் புவியியல் இருப்பிடம் ஆதரிக்கப்படவில்லை.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const { latitude, longitude } = pos.coords;
+      document.getElementById('location').value = latitude.toFixed(6) + ',' + longitude.toFixed(6);
+    }, (err) => {
+      alert(currentLang === 'en' ? "Unable to retrieve your location." : "உங்கள் இடத்தை பெற முடியவில்லை.");
+    });
+  }
+
+  // Filter reports by category and search
+  async function loadFilteredReports() {
+    clearMarkers();
+    const filterCat = document.getElementById('filterCategory').value;
+    const searchText = document.getElementById('searchInput').value.trim().toLowerCase();
+    const sortOrder = document.getElementById('sortOrder').value;
+
+    const snapshot = await db.collection('reports').get();
+    let reports = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      reports.push({...data, id: doc.id});
+    });
+
+    // Filter category
+    if(filterCat !== 'all') {
+      reports = reports.filter(r => r.category === filterCat);
+    }
+    // Search text
+    if(searchText) {
+      reports = reports.filter(r => {
+        return (r.details && r.details.toLowerCase().includes(searchText)) ||
+               (r.category && r.category.toLowerCase().includes(searchText));
+      });
+    }
+    // Sort
+    reports.sort((a,b) => {
+      if(sortOrder === 'newest') {
+        return b.timestamp?.seconds - a.timestamp?.seconds;
+      } else {
+        return a.timestamp?.seconds - b.timestamp?.seconds;
+      }
+    });
+
+    updateLog(reports);
+    reports.forEach(addMarker);
+  }
+
+  // Clear all reports from Firestore (use with caution)
+  async function clearAllReports() {
+    if(!confirm(currentLang === 'en' ? "Are you sure you want to clear all reports?" : "அனைத்து புகார்களையும் அழிக்க விரும்புகிறீர்களா?")) return;
+    const snapshot = await db.collection('reports').get();
+    const batch = db.batch();
+    snapshot.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    clearMarkers();
+    document.getElementById('log').textContent = currentLang === 'en' ? "No reports yet." : "புகார்கள் இல்லை.";
+  }
+
+  // Download reports as JSON file
+  async function downloadReports() {
+    const snapshot = await db.collection('reports').get();
+    const reports = [];
+    snapshot.forEach(doc => {
+      reports.push({...doc.data(), id: doc.id});
+    });
+    const dataStr = JSON.stringify(reports, null, 2);
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'SafeCityPulseReports.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Show nearest report to user's location
+  async function showNearestReport() {
+    if (!navigator.geolocation) {
+      alert(currentLang === 'en' ? "Geolocation is not supported by your browser." : "உங்கள் உலாவியில் புவியியல் இருப்பிடம் ஆதரிக்கப்படவில்லை.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      const userLoc = new google.maps.LatLng(latitude, longitude);
+
+      const snapshot = await db.collection('reports').get();
+      let minDist = Infinity;
+      let nearest = null;
+      snapshot.forEach(doc => {
+        const r = doc.data();
+        if(r.lat && r.lng) {
+          const reportLoc = new google.maps.LatLng(r.lat, r.lng);
+          const dist = google.maps.geometry.spherical.computeDistanceBetween(userLoc, reportLoc);
+          if(dist < minDist) {
+            minDist = dist;
+            nearest = {...r, id: doc.id};
+          }
+        }
+      });
+
+      if(nearest) {
+        map.setCenter(new google.maps.LatLng(nearest.lat, nearest.lng));
+        map.setZoom(16);
+        alert((currentLang === 'en' ? "Nearest Report:\n" : "அருகிலுள்ள புகார்:\n") +
+              `${nearest.category} - ${nearest.details}\n` +
+              (currentLang === 'en' ? `Distance: ${(minDist/1000).toFixed(2)} km` : `தூரம்: ${(minDist/1000).toFixed(2)} கி.மீ`));
+      } else {
+        alert(currentLang === 'en' ? "No reports found." : "புகார்கள் எதுவும் இல்லை.");
+      }
+    }, () => {
+      alert(currentLang === 'en' ? "Unable to retrieve your location." : "உங்கள் இடத்தை பெற முடியவில்லை.");
+    });
+  }
+
+  // Print incident log
+  function printLog() {
+    const logContent = document.getElementById('log').textContent;
+    const newWin = window.open('', '', 'width=600,height=700');
+    newWin.document.write(`<pre>${logContent}</pre>`);
+    newWin.document.close();
+    newWin.focus();
+    newWin.print();
+  }
+
+  // Emergency call
+  function callEmergency() {
+    const num = document.getElementById('emergencyNumber').value.trim();
+    if(!num) {
+      alert(currentLang === 'en' ? "Please enter emergency contact number." : "தயவு செய்து அவசர தொடர்பு எண்ணை உள்ளிடவும்.");
+      return;
+    }
+    window.location.href = `tel:${num}`;
+  }
+
+  // SOS Countdown Timer
+  let sosTimer = null;
+  let sosCount = 0;
+
+  function updateSosStatus(text) {
+    document.getElementById('sosStatus').textContent = `${texts[currentLang].status_idle.replace('Idle', text)}`;
+  }
+
+  function startSosCountdown() {
+    const seconds = parseInt(document.getElementById('sosSeconds').value);
+    if(isNaN(seconds) || seconds < 1) {
+      alert(currentLang === 'en' ? "Please enter a valid countdown seconds (1 or more)." : "சரியான எண்ணிக்கை நொடிகளை உள்ளிடவும் (1 அல்லது அதற்கு மேல்).");
+      return;
+    }
+    if(sosTimer) {
+      alert(currentLang === 'en' ? "SOS is already running." : "SOS ஏற்கனவே இயங்குகிறது.");
+      return;
+    }
+    sosCount = seconds;
+    updateSosStatus(`${sosCount} seconds remaining`);
+    document.getElementById('startSosBtn').disabled = true;
+    document.getElementById('cancelSosBtn').disabled = false;
+
+    sosTimer = setInterval(() => {
+      sosCount--;
+      if(sosCount <= 0) {
+        clearInterval(sosTimer);
+        sosTimer = null;
+        updateSosStatus(currentLang === 'en' ? 'SOS SENT!' : 'SOS அனுப்பப்பட்டது!');
+        alert(currentLang === 'en' ? 'SOS Countdown finished! Emergency alert sent!' : 'SOS எண்ணிக்கை முடிந்தது! அவசர எச்சரிக்கை அனுப்பப்பட்டது!');
+        document.getElementById('startSosBtn').disabled = false;
+        document.getElementById('cancelSosBtn').disabled = true;
+      } else {
+        updateSosStatus(`${sosCount} seconds remaining`);
+      }
+    }, 1000);
+  }
+
+  function cancelSosCountdown() {
+    if(sosTimer) {
+      clearInterval(sosTimer);
+      sosTimer = null;
+      updateSosStatus(currentLang === 'en' ? 'Cancelled' : 'ரத்து செய்யப்பட்டது');
+      document.getElementById('startSosBtn').disabled = false;
+      document.getElementById('cancelSosBtn').disabled = true;
+    }
+  }
+
+  // Voice Input for Details (Speech Recognition)
+  let recognition;
+  let isRecognizing = false;
+
+  function updateVoiceBtnText() {
+    const btn = document.getElementById('startVoiceBtn');
+    btn.textContent = isRecognizing ? texts[currentLang].voice_input_stop : texts[currentLang].voice_input_start;
+  }
+
+  function setupVoiceRecognition() {
+    if(!('webkitSpeechRecognition' in window)) {
+      document.getElementById('startVoiceBtn').disabled = true;
+      return;
+    }
+    recognition = new webkitSpeechRecognition();
+    recognition.lang = currentLang === 'en' ? 'en-US' : 'ta-IN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      isRecognizing = true;
+      updateVoiceBtnText();
+    };
+
+    recognition.onend = () => {
+      isRecognizing = false;
+      updateVoiceBtnText();
+    };
+
+    recognition.onerror = (event) => {
+      alert((currentLang === 'en' ? 'Speech recognition error: ' : 'குரல் உணர்வு பிழை: ') + event.error);
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      const detailsInput = document.getElementById('details');
+      detailsInput.value += (detailsInput.value ? ' ' : '') + transcript;
+    };
+  }
+
+  // Initialize app and add event listeners
+  window.addEventListener('load', () => {
+    initMap();
+    applyLanguage(currentLang);
+    setupVoiceRecognition();
+
+    document.getElementById('submitBtn').addEventListener('click', submitReport);
+    document.getElementById('useLocationBtn').addEventListener('click', useMyLocation);
+    document.getElementById('loadReportsBtn').addEventListener('click', loadFilteredReports);
+    document.getElementById('clearReportsBtn').addEventListener('click', clearAllReports);
+    document.getElementById('downloadReportsBtn').addEventListener('click', downloadReports);
+    document.getElementById('nearestReportBtn').addEventListener('click', showNearestReport);
+    document.getElementById('printLogBtn').addEventListener('click', printLog);
+    document.getElementById('callEmergencyBtn').addEventListener('click', callEmergency);
+    document.getElementById('startSosBtn').addEventListener('click', startSosCountdown);
+    document.getElementById('cancelSosBtn').addEventListener('click', cancelSosCountdown);
+    document.getElementById('startVoiceBtn').addEventListener('click', () => {
+      if(isRecognizing) {
+        recognition.stop();
+      } else {
+        recognition.lang = currentLang === 'en' ? 'en-US' : 'ta-IN';
+        recognition.start();
+      }
+    });
+  });
+</script>
+
+<!--
+Notes:
+- Replace Firebase config with your own project's credentials.
+- Your IPv4 address: 10.203.14.105 (use for local testing or backend calls)
+- Logo source: https://cdn-icons-png.flaticon.com/512/2650/2650779.png (free women safety icon)
+- Background image is from Unsplash, free to use for projects.
+-->
+
+</body>
+</html>
